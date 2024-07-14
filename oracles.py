@@ -21,7 +21,7 @@ class MainOracle():
         pipe = pipeline(model=model, task="text-generation", tokenizer=tokenizer, device=device)
         return pipe
     
-    def interact(self, new_prompt, max_tokens=250):
+    def interact(self, new_prompt, max_tokens=800):
         if self.num_turns == 0:
             new_prompt = self.header_prompt + ' ' + self.prompt_formatting(new_prompt, 'user')
             model_answer = self.pipeline(new_prompt, max_new_tokens=max_tokens)[0]['generated_text'][len(new_prompt):]
@@ -122,19 +122,16 @@ class ObsidianOracle(MainOracle):
 
     def context_answer(self, prompt: str, fnames: list) -> str:
         
-        contextual_prompt = None
+        contextual_prompt = []
+
         for fname in fnames:
-            pass
+            with open(self.file_dict[fname], 'r') as f:
+                content = f.read()
+                contextual_prompt.append(fname[:len(fname-3)] + ' ' + content)
+        
+        contextual_prompt = ' '.join(contextual_prompt)
 
-        pass
-
-    def edit_file(self, prompt: str, fname: str):
-        fpath = self.file_dict[fname]
-
-        with open(fpath, 'r') as f:
-            file = f.read()
-
-        pass
+        answer = self.interact(contextual_prompt + ' ' + prompt)
 
     def get_file_dict(self) -> dict:
         file_dict = {}
@@ -156,7 +153,7 @@ class ObsidianOracle(MainOracle):
         
         return dir_dict
     
-    ''' 
+    '''
     Right now the program expects the files to be name 'Life Todo.md' and 'Work Todo.md', and to be placed in the root folder.
     Maybe extend it to be more custom in the future.
     '''
@@ -185,6 +182,15 @@ class ObsidianOracle(MainOracle):
             
             content = self.extract_gmorning_content(file, num_previous_days)
             self.interact(good_morning_prompt + content, max_tokens=500)
+
+    def create_file(self, filename):
+        pass
+
+    def edit_file(self, filename):
+        pass
+
+    def delete_file(self, filename):
+        pass
     
     def extract_gmorning_content(self, file_text, num_previous_days: int) -> str:
 
