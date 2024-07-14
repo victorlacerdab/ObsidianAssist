@@ -1,13 +1,15 @@
 import transformers
 import torch
+import numpy as np
 import os
 import regex as re
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from IPython.display import display, Markdown
 
 class MainOracle():
-    def __init__(self, model_name, device, header_prompt):
+    def __init__(self, model_name, rag_model, device, header_prompt):
         self.model_name = model_name
+        self.rag_model = rag_model
         self.pipeline = self.create_pipeline(model_name, device)
         self.chat_history = {}
         self.header_prompt = self.header_prompt_formatting(header_prompt)
@@ -17,8 +19,8 @@ class MainOracle():
     def create_pipeline(self, model_name, device):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
-
         pipe = pipeline(model=model, task="text-generation", tokenizer=tokenizer, device=device)
+
         return pipe
     
     def interact(self, new_prompt, max_tokens=800):
@@ -109,15 +111,18 @@ class MainOracle():
 
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
-                 header_prompt: str, vault_path: str,
+                 rag_model, header_prompt: str, vault_path: str,
                  ragdb_foldername: str):
         super().__init__(model_name, device, header_prompt)
         self.vault_path = vault_path
         self.ragdb_path = ragdb_foldername
+        self.embedding_db = self.embed_vault(ragdb_foldername)
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
 
     def rag_answer(self, prompt: str) -> str:
+
+        # Looks for an answer using RAG
         pass
 
     def context_answer(self, prompt: str, fnames: list) -> str:
@@ -204,6 +209,24 @@ class ObsidianOracle(MainOracle):
         content = "\n\n".join(relevant_sections)
 
         return content
+    
+    def embed_vault(self, rag_model, ragdb_foldername: str):
+
+        # A few cases:
+        # First time loading up (check whether the folder exists and the files in it are correct) -> embed everything upon initialization;
+        # Second time loading up: check for new content, embed only the new content;
+        # Third case: deleted content, if some file is deleted, then we should also delete its embeddings. Possible problem: if the deleted passage lies
+        # within a chunk boundary, what to do?
+
+        if not os.path.join(self.vault_path, self.ragdb_path):
+            pass
+
+        else:
+            pass
+
+
+
+        pass
 
 
 
