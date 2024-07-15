@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import os
 import regex as re
+from ragencoder import ObsidianRAG
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from IPython.display import display, Markdown
 
@@ -111,21 +112,21 @@ class MainOracle():
 
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
-                 rag_model, header_prompt: str, vault_path: str,
+                 rag_model: ObsidianRAG, header_prompt: str, vault_path: str,
                  ragdb_foldername: str):
         super().__init__(model_name, device, header_prompt)
         self.vault_path = vault_path
         self.ragdb_path = ragdb_foldername
-        self.embedding_db = self.embed_vault(ragdb_foldername)
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
+        self.embedding_db = self.embed_vault(rag_model=rag_model, file_dict=self.file_dict, ragdb_foldername=ragdb_foldername)
 
     def rag_answer(self, prompt: str) -> str:
 
         # Looks for an answer using RAG
         pass
 
-    def context_answer(self, prompt: str, fnames: list) -> str:
+    def context_answer(self, prompt: str, fnames: list) -> None:
         
         contextual_prompt = []
 
@@ -163,7 +164,7 @@ class ObsidianOracle(MainOracle):
     Maybe extend it to be more custom in the future.
     '''
 
-    def good_morning(self, mode: str, num_previous_days: int):
+    def good_morning(self, mode: str, num_previous_days: int) -> None:
         
         if mode not in ('life', 'work'):
             raise ValueError("Invalid mode. Expected 'life' or 'work'.")
@@ -199,6 +200,11 @@ class ObsidianOracle(MainOracle):
     
     def extract_gmorning_content(self, file_text, num_previous_days: int) -> str:
 
+        ''' 
+        The function expects that the contents of both the Work and Life todo Markdown files
+        have '# dd/mm/yy' marking the days, and nothing else merits the h1 header # symbol.
+        '''
+
         day_sections = re.split(r'^# \d{2}/\d{2}/\d{2}', file_text, flags=re.MULTILINE)
         day_sections = [section.strip() for section in day_sections if section.strip()]
 
@@ -210,7 +216,7 @@ class ObsidianOracle(MainOracle):
 
         return content
     
-    def embed_vault(self, rag_model, ragdb_foldername: str):
+    def embed_vault(self, rag_model, file_dict, ragdb_foldername: str) -> np.array:
 
         # A few cases:
         # First time loading up (check whether the folder exists and the files in it are correct) -> embed everything upon initialization;
@@ -218,8 +224,11 @@ class ObsidianOracle(MainOracle):
         # Third case: deleted content, if some file is deleted, then we should also delete its embeddings. Possible problem: if the deleted passage lies
         # within a chunk boundary, what to do?
 
-        if not os.path.join(self.vault_path, self.ragdb_path):
-            pass
+        if not os.path.exists(ragdb_foldername):
+            print('No vector database associated with the selected Vault. Do you wish to embed your vault? This may take a while. (y/n).')
+
+            os.makdir(self.ragdb_path)
+            self.rag_model.embed_vault(file_dict)
 
         else:
             pass
