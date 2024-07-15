@@ -1,5 +1,6 @@
 import transformers
 import torch
+import json
 import numpy as np
 import os
 import regex as re
@@ -110,16 +111,21 @@ class MainOracle():
             text2display = text.split('<end_of_turn>')[0].strip()
             display(Markdown(f'**Oracle Response:** {text2display[len('<start_of_turn>user'):]}'))
 
+
+
+         
+
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
-                 rag_model: ObsidianRAG, header_prompt: str, vault_path: str,
+                 rag_model, header_prompt: str, vault_path: str,
                  ragdb_foldername: str):
-        super().__init__(model_name, device, header_prompt)
+        super().__init__(model_name, rag_model, device, header_prompt)
         self.vault_path = vault_path
         self.ragdb_path = ragdb_foldername
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
-        self.embedding_db = self.embed_vault(rag_model=rag_model, file_dict=self.file_dict, ragdb_foldername=ragdb_foldername)
+        self.rag_model = ObsidianRAG(rag_model, 128, self.file_dict)
+        self.embedding_db = self.embed_vault()
 
     def rag_answer(self, prompt: str) -> str:
 
@@ -216,7 +222,10 @@ class ObsidianOracle(MainOracle):
 
         return content
     
-    def embed_vault(self, rag_model, file_dict, ragdb_foldername: str) -> np.array:
+    def embed_vault(self) -> str:
+        '''
+        The function returns the location of the vector database as a string.
+        ''' 
 
         # A few cases:
         # First time loading up (check whether the folder exists and the files in it are correct) -> embed everything upon initialization;
@@ -224,11 +233,29 @@ class ObsidianOracle(MainOracle):
         # Third case: deleted content, if some file is deleted, then we should also delete its embeddings. Possible problem: if the deleted passage lies
         # within a chunk boundary, what to do?
 
-        if not os.path.exists(ragdb_foldername):
-            print('No vector database associated with the selected Vault. Do you wish to embed your vault? This may take a while. (y/n).')
+        vaultdb_path = os.path.join(self.ragdb_path, 'vaultdb.npy')
 
-            os.makdir(self.ragdb_path)
-            self.rag_model.embed_vault(file_dict)
+        if not os.path.exists(self.ragdb_path) or not os.path.exists(vaultdb_path):
+            response = input('No vector database associated with the selected Vault. Do you wish to embed your vault? This may take a while. (y/n).')
+
+            if response == 'y':
+                vault_vector_db, emb_chunk_dict = self.rag_model.embed_vault()
+                print('The vault has been embedded. Saving the vector database as a .npy file.')
+                os.makedirs(self.ragdb_path)
+                embedding_file_path = os.path.join(self.ragdb_path, 'vaultdb.npy')
+                embedding_chunk_pair_path = os.path.join(self.ragdb_path, 'embchunk.json')
+                np.save(embedding_file_path, vault_vector_db)
+                with open(embedding_chunk_pair_path, 'w') as json_file:
+                    json.dump(emb_chunk_dict, json_file, indent=4)
+                
+                return (embedding_file_path, embedding_chunk_pair_path)
+
+            elif response == 'n':
+                'Proceeding without a vector database. RAG functionality will not be available.'
+                pass
+
+            elif response not in ['y', 'n']:
+                raise ValueError('Response must be \'y\' or \'n\'')
 
         else:
             pass

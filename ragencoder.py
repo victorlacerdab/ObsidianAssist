@@ -18,16 +18,22 @@ class ObsidianRAG():
         The file_dict object contains (fname: full_path) pairs.
         '''
 
+        vector_database = []
+        emb_chunk_dict = {}
+
         for fname, file_directory in self.file_dict.items():
                 with open(file_directory, 'r') as f:
                     content = f.read()
-                    chunked_content = self.chunk(content)
-                    embedding = self.embed_from_chunked(chunked_content)
+                    chunked_content = self.chunk(content, self.token_limit) # This returns a list containing strings
+                    embeddings = self.embed_from_chunked(chunked_content)
+                    emb_chunk_dict.update({str(embeddings[i][:10]):chunked_content[i] for i in range(len(chunked_content))})
+                    vector_database.extend(embeddings)
 
+        return np.array(vector_database), emb_chunk_dict
                     
     def embed_from_chunked(self, chunks: list):
-
-        pass
+        embeddings = [self.model.encode(chunk) for chunk in chunks]
+        return embeddings
 
     def embed_single_file(self, filename: str) -> np.array:
 
