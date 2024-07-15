@@ -113,8 +113,6 @@ class MainOracle():
 
 
 
-         
-
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
                  rag_model, header_prompt: str, vault_path: str,
@@ -124,14 +122,25 @@ class ObsidianOracle(MainOracle):
         self.ragdb_path = ragdb_foldername
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
-        self.rag_model = ObsidianRAG(rag_model, 128, self.file_dict)
-        self.embedding_db = self.embed_vault()
+        self.rag_model = ObsidianRAG(rag_model, token_limit=256, file_dict=self.file_dict)
+        self.embedding_db_paths = self.embed_vault()
 
-    def rag_answer(self, prompt: str) -> str:
+    def rag_answer(self, prompt: str, top_k: int) -> None:
 
-        # Looks for an answer using RAG
-        pass
-
+        embedded_prompt = torch.tensor(self.rag_model.model.encode(prompt)).unsqueeze(0)
+        # put to cuda
+        vector_db = np.load(self.embedding_db_paths[0]) # This seems to be grossly inefficient
+        # put to cuda
+        with open(self.embedding_db_paths[1], 'r') as json_file:
+            emb_chunk_dict = json.load(json_file)
+        
+        similarity_score = self.rag_model.similarity_scores(embedded_prompt, torch.tensor(vector_db), top_k)
+        chunk_idcs = [entry['corpus_id'] for similarity_result in similarity_score for entry in similarity_result]
+        embedding_keys = [str(vector_db[idx, :10]) for idx in chunk_idcs]
+        retrieved_chunks = [emb_chunk_dict[emb_key] for emb_key in embedding_keys]
+        final_prompt = prompt + 'These are some pieces of information that might be relevant expand upon them: ' + ' '.join(retrieved_chunks)
+        rag_answer = self.interact(final_prompt)
+        
     def context_answer(self, prompt: str, fnames: list) -> None:
         
         contextual_prompt = []
@@ -234,21 +243,20 @@ class ObsidianOracle(MainOracle):
         # within a chunk boundary, what to do?
 
         vaultdb_path = os.path.join(self.ragdb_path, 'vaultdb.npy')
+        emb_chunk_dict_path = os.path.join(self.ragdb_path, 'embchunk.json')
 
         if not os.path.exists(self.ragdb_path) or not os.path.exists(vaultdb_path):
             response = input('No vector database associated with the selected Vault. Do you wish to embed your vault? This may take a while. (y/n).')
 
             if response == 'y':
                 vault_vector_db, emb_chunk_dict = self.rag_model.embed_vault()
-                print('The vault has been embedded. Saving the vector database as a .npy file.')
+                print('The vault has been embedded.')
                 os.makedirs(self.ragdb_path)
-                embedding_file_path = os.path.join(self.ragdb_path, 'vaultdb.npy')
-                embedding_chunk_pair_path = os.path.join(self.ragdb_path, 'embchunk.json')
-                np.save(embedding_file_path, vault_vector_db)
-                with open(embedding_chunk_pair_path, 'w') as json_file:
+                np.save(vaultdb_path, vault_vector_db)
+                with open(emb_chunk_dict_path, 'w') as json_file:
                     json.dump(emb_chunk_dict, json_file, indent=4)
                 
-                return (embedding_file_path, embedding_chunk_pair_path)
+                return (vaultdb_path, emb_chunk_dict_path)
 
             elif response == 'n':
                 'Proceeding without a vector database. RAG functionality will not be available.'
@@ -258,7 +266,8 @@ class ObsidianOracle(MainOracle):
                 raise ValueError('Response must be \'y\' or \'n\'')
 
         else:
-            pass
+            # remember to add checks to see whether new files have been created and embed them
+            return (vaultdb_path, emb_chunk_dict_path)
 
 
 

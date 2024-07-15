@@ -3,7 +3,8 @@ import numpy as np
 import os
 import regex as re
 import json
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
+from sentence_transformers.util import semantic_search
 
 class ObsidianRAG():
     def __init__(self, rag_model: SentenceTransformer, token_limit: int, file_dict: dict):
@@ -43,7 +44,7 @@ class ObsidianRAG():
         
         pass
 
-    def chunk(self, content: str, token_limit) -> list:
+    def chunk(self, content: str, token_limit: int) -> list:
 
         '''
         The 'sentence-transformers/all-MiniLM-L6-v2' was trained on 128 tokens, which we use as a hard limiter.
@@ -57,7 +58,7 @@ class ObsidianRAG():
         The step for chunking sentences down can be improved, since right now it may chunk things in a meaningless way.
         '''
         
-        chunked_content = content.split('.')
+        chunked_content = re.split(r'[.;+]', content)
         chunked_content = [sentence.strip() for sentence in chunked_content if sentence.strip()]
         len_chunks = [self.model.tokenize(chunk)['input_ids'].shape[0] for chunk in chunked_content]
         final_chunked_content = []
@@ -72,3 +73,8 @@ class ObsidianRAG():
                     final_chunked_content.append(temp_chunk)
                 
         return final_chunked_content
+    
+    def similarity_scores(self, embedded_query: torch.tensor, vector_db: torch.tensor, top_k: int) -> list[dict]:
+        scores = semantic_search(query_embeddings=embedded_query, corpus_embeddings=vector_db, top_k=top_k)
+        return scores
+
