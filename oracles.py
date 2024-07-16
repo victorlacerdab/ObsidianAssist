@@ -148,7 +148,7 @@ class ObsidianOracle(MainOracle):
         for fname in fnames:
             with open(self.file_dict[fname], 'r') as f:
                 content = f.read()
-                contextual_prompt.append(fname[:len(fname-3)] + ' ' + content)
+                contextual_prompt.append(fname[:len(fname)-3] + ' ' + content)
         
         contextual_prompt = ' '.join(contextual_prompt)
 
@@ -187,7 +187,7 @@ class ObsidianOracle(MainOracle):
         life_morning_dir = os.path.join(self.vault_path, 'Life Todo.md')
         work_morning_dir = os.path.join(self.vault_path, 'Work Todo.md')
 
-        good_morning_prompt = ' \'[ ]\' means unfinished task while \'[x]\' means an already completed task, do not remind those. Break answer into *Open tasks:* and *Suggestions:*. Dont just repeat what is written. Based your answer on the following: '
+        good_morning_prompt = ' \'[ ]\' means unfinished task while \'[x]\' means an already completed task. Break answer into *Open tasks:* and *Suggestions:*. Dont just repeat what is written. Based your answer on the following: '
         good_morning_prompt = self.prompt_formatting(good_morning_prompt, 'system')
 
         if mode == 'life':
@@ -268,8 +268,6 @@ class ObsidianOracle(MainOracle):
         else:
             # remember to add checks to see whether new files have been created and embed them
             return (vaultdb_path, emb_chunk_dict_path)
-
-
 
         pass
 

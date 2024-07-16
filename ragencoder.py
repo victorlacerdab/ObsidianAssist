@@ -31,18 +31,6 @@ class ObsidianRAG():
                     vector_database.extend(embeddings)
 
         return np.array(vector_database), emb_chunk_dict
-                    
-    def embed_from_chunked(self, chunks: list):
-        embeddings = [self.model.encode(chunk) for chunk in chunks]
-        return embeddings
-
-    def embed_single_file(self, filename: str) -> np.array:
-
-        # First time embedding file
-
-        # Making embeding changes to file
-        
-        pass
 
     def chunk(self, content: str, token_limit: int) -> list:
 
@@ -74,7 +62,17 @@ class ObsidianRAG():
                 
         return final_chunked_content
     
-    def similarity_scores(self, embedded_query: torch.tensor, vector_db: torch.tensor, top_k: int) -> list[dict]:
+    def embed_from_chunked(self, chunks: list):
+        embeddings = [self.model.encode(chunk) for chunk in chunks]
+        return embeddings
+
+    def embed_single_file(self, filename: str) -> np.array:
+
+        # First time embedding file
+        # Making embeding changes to file
+        pass
+    
+    def similarity_scores(self, embedded_query: torch.tensor, vector_db: torch.tensor, top_k: int) -> list[list[dict]]:
         scores = semantic_search(query_embeddings=embedded_query, corpus_embeddings=vector_db, top_k=top_k)
         return scores
 
