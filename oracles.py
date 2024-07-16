@@ -187,7 +187,7 @@ class ObsidianOracle(MainOracle):
         life_morning_dir = os.path.join(self.vault_path, 'Life Todo.md')
         work_morning_dir = os.path.join(self.vault_path, 'Work Todo.md')
 
-        good_morning_prompt = ' \'[ ]\' means unfinished task while \'[x]\' means an already completed task. Break answer into *Open tasks:* and *Suggestions:*. Dont just repeat what is written. Based your answer on the following: '
+        good_morning_prompt = ' \'[ ]\' means unfinished task while \'[x]\' means an already completed task. Break answer into *Open tasks:* and *Suggestions:*. Dont just repeat what is written, dont include complete tasks, include all open tasks. Base your answer on the following: '
         good_morning_prompt = self.prompt_formatting(good_morning_prompt, 'system')
 
         if mode == 'life':
@@ -203,15 +203,6 @@ class ObsidianOracle(MainOracle):
             
             content = self.extract_gmorning_content(file, num_previous_days)
             self.interact(good_morning_prompt + content, max_tokens=500)
-
-    def create_file(self, filename):
-        pass
-
-    def edit_file(self, filename):
-        pass
-
-    def delete_file(self, filename):
-        pass
     
     def extract_gmorning_content(self, file_text, num_previous_days: int) -> str:
 
@@ -231,7 +222,7 @@ class ObsidianOracle(MainOracle):
 
         return content
     
-    def embed_vault(self) -> str:
+    def embed_vault(self) -> None:
         '''
         The function returns the location of the vector database as a string.
         ''' 
@@ -244,6 +235,7 @@ class ObsidianOracle(MainOracle):
 
         vaultdb_path = os.path.join(self.ragdb_path, 'vaultdb.npy')
         emb_chunk_dict_path = os.path.join(self.ragdb_path, 'embchunk.json')
+        files_to_embed_path = os.path.join(self.ragdb_path, 'embedded_fnames')
 
         if not os.path.exists(self.ragdb_path) or not os.path.exists(vaultdb_path):
             response = input('No vector database associated with the selected Vault. Do you wish to embed your vault? This may take a while. (y/n).')
@@ -253,20 +245,41 @@ class ObsidianOracle(MainOracle):
                 print('The vault has been embedded.')
                 os.makedirs(self.ragdb_path)
                 np.save(vaultdb_path, vault_vector_db)
+                with open(files_to_embed_path, 'w') as json_file:
+                    json.dump(self.file_dict, json_file, indent=4)
                 with open(emb_chunk_dict_path, 'w') as json_file:
                     json.dump(emb_chunk_dict, json_file, indent=4)
                 
-                return (vaultdb_path, emb_chunk_dict_path)
+                self.embedding_db_paths = (vaultdb_path, emb_chunk_dict_path)
 
             elif response == 'n':
-                'Proceeding without a vector database. RAG functionality will not be available.'
+                print('Proceeding without a vector database. RAG functionality will not be available.')
+                print('You may call the .embed_vault() method to embed your files later.')
                 pass
 
             elif response not in ['y', 'n']:
                 raise ValueError('Response must be \'y\' or \'n\'')
 
         else:
-            # remember to add checks to see whether new files have been created and embed them
+            with open(files_to_embed_path, 'r') as fnames_json:
+                prev_embedded_files = set([key for key in dict(json.load(fnames_json)).keys()])
+            
+            recent_files = set([key for key in self.file_dict.keys()])
+            deleted_files = [fname for fname in prev_embedded_files if fname not in recent_files]
+            new_files = [fname for fname in recent_files if fname not in prev_embedded_files]
+
+            if deleted_files or new_files:
+                response = input('Files were either included or removed from your vault. Would you like to embed the new ones and delete the embeddings for the old ones? (y/n)')
+
+                if response == 'y':
+                    pass
+
+                elif response == 'n':
+                    pass
+
+                elif response not in ['y', 'n']:
+                    raise ValueError('Response must be \'y\' or \'n\'')
+                        
             return (vaultdb_path, emb_chunk_dict_path)
 
         pass

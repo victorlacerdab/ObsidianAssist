@@ -31,8 +31,12 @@ class ObsidianRAG():
                     vector_database.extend(embeddings)
 
         return np.array(vector_database), emb_chunk_dict
+    
+    def embed_new_files(self, files_to_embed: dict):
+        vector_database = np.load()
+        pass
 
-    def chunk(self, content: str, token_limit: int) -> list:
+    def chunk(self, content: str, token_limit: int) -> list[str]:
 
         '''
         The 'sentence-transformers/all-MiniLM-L6-v2' was trained on 128 tokens, which we use as a hard limiter.
@@ -62,7 +66,7 @@ class ObsidianRAG():
                 
         return final_chunked_content
     
-    def embed_from_chunked(self, chunks: list):
+    def embed_from_chunked(self, chunks: list) -> list[np.array]:
         embeddings = [self.model.encode(chunk) for chunk in chunks]
         return embeddings
 
