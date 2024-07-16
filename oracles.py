@@ -34,6 +34,7 @@ class MainOracle():
             self.num_turns += 1
             try:
                 self.display_text(model_answer)
+                print(model_answer)
             except:
                 print(model_answer)
 
@@ -48,6 +49,7 @@ class MainOracle():
             self.num_turns += 1
             try:
                 self.display_text(model_answer)
+                print(model_answer)
             except:
                 print(model_answer)
             
@@ -121,7 +123,7 @@ class ObsidianOracle(MainOracle):
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
         self.rag_model = ObsidianRAG(rag_model, token_limit=256, file_dict=self.file_dict)
-        self.embedding_db_paths = self.embed_vault_init() # Tuple containing (path_to_vectordb, emb_chunk_jsonfile)
+        self.embedding_db_paths = self.embed_vault_init() # Tuple containing (vectordb_path: np.array, emb_chunk_path: json, embedded_files_path: json)
 
     def rag_answer(self, prompt: str, top_k: int) -> None:
 
@@ -170,15 +172,14 @@ class ObsidianOracle(MainOracle):
                 file = f.read()
 
             content = self.extract_gmorning_content(file, num_previous_days)
-            self.interact(good_morning_prompt + content, max_tokens=1000)
+            self.interact(good_morning_prompt + content, max_tokens=500)
 
         elif mode == 'work':
             with open(work_morning_dir, 'r') as f:
                 file = f.read()
             
             content = self.extract_gmorning_content(file, num_previous_days)
-            print(content)
-            self.interact(good_morning_prompt + content, max_tokens=1000)
+            self.interact(good_morning_prompt + content, max_tokens=500)
     
     def extract_gmorning_content(self, file_text, num_previous_days: int) -> str:
 
@@ -198,17 +199,7 @@ class ObsidianOracle(MainOracle):
 
         return content
     
-    def embed_vault_init(self) -> None:
-        '''
-        The function returns the location of the vector database as a string.
-        ''' 
-
-        # A few cases:
-        # First time loading up (check whether the folder exists and the files in it are correct) -> embed everything upon initialization;
-        # Second time loading up: check for new content, embed only the new content;
-        # Third case: deleted content, if some file is deleted, then we should also delete its embeddings. Possible problem: if the deleted passage lies
-        # within a chunk boundary, what to do?
-
+    def embed_vault_init(self) -> list[str]:
         vaultdb_path = os.path.join(self.ragdb_path, 'vaultdb.npy')
         emb_chunk_dict_path = os.path.join(self.ragdb_path, 'embchunk.json')
         files_to_embed_path = os.path.join(self.ragdb_path, 'embedded_fnames')
@@ -223,7 +214,7 @@ class ObsidianOracle(MainOracle):
 
             elif response == 'n':
                 print('Proceeding without a vector database. RAG functionality will not be available.')
-                print('You may call the .embed_vault() method to embed your files later.')
+                print('You may call the .embed_vault_init() method to embed your files later.')
                 pass
 
             elif response not in ['y', 'n']:
@@ -231,27 +222,31 @@ class ObsidianOracle(MainOracle):
 
         else:
             with open(files_to_embed_path, 'r') as fnames_json:
-                prev_embedded_files = set([key for key in dict(json.load(fnames_json)).keys()])
-            
-            recent_files = set([key for key in self.file_dict.keys()])
+                prev_embedded_files = [key for key in list(dict(json.load(fnames_json)).keys())]
+                
+            recent_files = [key for key in list(self.file_dict.keys())]
             deleted_files = [fname for fname in prev_embedded_files if fname not in recent_files]
             new_files = [fname for fname in recent_files if fname not in prev_embedded_files]
 
             if deleted_files or new_files:
-                response = input('Files were either included or removed from your vault. Would you like to embed the new ones and delete the embeddings for the old ones? (y/n)')
+                response = input('Files were either included or removed from your vault. Would you like to embed the new ones and delete the embeddings for the old ones? This may take a while. (y/n)')
 
                 if response == 'y':
-                    pass
-
+                    self.embedding_db_paths = [vaultdb_path, emb_chunk_dict_path, files_to_embed_path]
+                    self.embedding_oblivion()
+                    vault_vector_db, emb_chunk_dict = self.rag_model.embed_vault()
+                    self.save_rag_db_disk(vault_vector_db, emb_chunk_dict, vaultdb_path, files_to_embed_path, emb_chunk_dict_path)
+                    return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
+                    
                 elif response == 'n':
-                    pass
+                    print('Proceeding without making changes to the existing embeddings. New information will not be used for RAG, and deleted chunks might be included in answers.')
+                    return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
 
                 elif response not in ['y', 'n']:
                     raise ValueError('Response must be \'y\' or \'n\'')
-                        
-            return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
-
-        pass
+            
+            else:
+                return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
 
     def get_file_dict(self) -> dict:
         file_dict = {}
@@ -274,7 +269,6 @@ class ObsidianOracle(MainOracle):
         return dir_dict
 
     def save_rag_db_disk(self, embedded_vault: np.array, emb_chunk_dict: dict, vaultdb_path: str, files_to_embed_path: str, emb_chunk_dict_path: str) -> None:
-        
         os.makedirs(self.ragdb_path)
         np.save(vaultdb_path, embedded_vault)
         with open(files_to_embed_path, 'w') as json_file:
@@ -282,3 +276,12 @@ class ObsidianOracle(MainOracle):
         with open(emb_chunk_dict_path, 'w') as json_file:
                 json.dump(emb_chunk_dict, json_file, indent=4)
         print('The vault has been embedded.')
+
+    def restart_embedding(self) -> None:
+        self.embedding_oblivion()
+        self.embed_vault_init()
+
+    def embedding_oblivion(self) -> None:
+        for path in self.embedding_db_paths:
+            os.remove(path)
+        os.rmdir(self.ragdb_path)
