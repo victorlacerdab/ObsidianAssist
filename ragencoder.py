@@ -33,7 +33,6 @@ class ObsidianRAG():
         return np.array(vector_database), emb_chunk_dict
     
     def embed_new_files(self, files_to_embed: dict):
-        vector_database = np.load()
         pass
 
     def chunk(self, content: str, token_limit: int) -> list[str]:

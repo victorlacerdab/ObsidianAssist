@@ -59,7 +59,7 @@ class MainOracle():
         self.num_turns = 0
         print('Oblivion has come to the oracle.')
 
-    def partial_oblivion(self, steps_to_unroll: int):
+    def partial_oblivion(self, steps_to_unroll = 1):
         
         self.running_prompt = ''
         keys_to_delete = [k for k,_ in self.chat_history.items() if k >= self.num_turns - steps_to_unroll]
@@ -111,8 +111,6 @@ class MainOracle():
             text2display = text.split('<end_of_turn>')[0].strip()
             display(Markdown(f'**Oracle Response:** {text2display[len('<start_of_turn>user'):]}'))
 
-
-
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
                  rag_model, header_prompt: str, vault_path: str,
@@ -123,14 +121,12 @@ class ObsidianOracle(MainOracle):
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
         self.rag_model = ObsidianRAG(rag_model, token_limit=256, file_dict=self.file_dict)
-        self.embedding_db_paths = self.embed_vault()
+        self.embedding_db_paths = self.embed_vault_init() # Tuple containing (path_to_vectordb, emb_chunk_jsonfile)
 
     def rag_answer(self, prompt: str, top_k: int) -> None:
 
         embedded_prompt = torch.tensor(self.rag_model.model.encode(prompt)).unsqueeze(0)
-        # put to cuda
-        vector_db = np.load(self.embedding_db_paths[0]) # This seems to be grossly inefficient
-        # put to cuda
+        vector_db = np.load(self.embedding_db_paths[0])
         with open(self.embedding_db_paths[1], 'r') as json_file:
             emb_chunk_dict = json.load(json_file)
         
@@ -151,28 +147,7 @@ class ObsidianOracle(MainOracle):
                 contextual_prompt.append(fname[:len(fname)-3] + ' ' + content)
         
         contextual_prompt = ' '.join(contextual_prompt)
-
         answer = self.interact(contextual_prompt + ' ' + prompt)
-
-    def get_file_dict(self) -> dict:
-        file_dict = {}
-        for root, _, files in os.walk(self.vault_path, topdown=True):
-            for name in files:
-                if not name.startswith('.') and name.endswith('.md'):
-                    file_path = os.path.join(root, name)
-                    file_dict.update({name: file_path})
-        
-        return file_dict
-
-    def get_dir_dict(self) -> dict:
-        dir_dict = {}
-        for root, dirs, _ in os.walk(self.vault_path, topdown=True):
-            for name in dirs:
-                if not name.startswith('.'):
-                    file_path = os.path.join(root, name)
-                    dir_dict.update({name: file_path})
-        
-        return dir_dict
     
     '''
     Right now the program expects the files to be name 'Life Todo.md' and 'Work Todo.md', and to be placed in the root folder.
@@ -187,7 +162,7 @@ class ObsidianOracle(MainOracle):
         life_morning_dir = os.path.join(self.vault_path, 'Life Todo.md')
         work_morning_dir = os.path.join(self.vault_path, 'Work Todo.md')
 
-        good_morning_prompt = ' \'[ ]\' means unfinished task while \'[x]\' means an already completed task. Break answer into *Open tasks:* and *Suggestions:*. Dont just repeat what is written, dont include complete tasks, include all open tasks. Base your answer on the following: '
+        good_morning_prompt = ' \'[ ]\' means unfinished task while \'[x]\' means an already completed task. Break answer into *Open tasks:* and *Suggestions:*. Dont just repeat what is written, include all open tasks. Base your answer on the following: '
         good_morning_prompt = self.prompt_formatting(good_morning_prompt, 'system')
 
         if mode == 'life':
@@ -195,14 +170,15 @@ class ObsidianOracle(MainOracle):
                 file = f.read()
 
             content = self.extract_gmorning_content(file, num_previous_days)
-            self.interact(good_morning_prompt + content, max_tokens=500)
+            self.interact(good_morning_prompt + content, max_tokens=1000)
 
         elif mode == 'work':
             with open(work_morning_dir, 'r') as f:
                 file = f.read()
             
             content = self.extract_gmorning_content(file, num_previous_days)
-            self.interact(good_morning_prompt + content, max_tokens=500)
+            print(content)
+            self.interact(good_morning_prompt + content, max_tokens=1000)
     
     def extract_gmorning_content(self, file_text, num_previous_days: int) -> str:
 
@@ -222,7 +198,7 @@ class ObsidianOracle(MainOracle):
 
         return content
     
-    def embed_vault(self) -> None:
+    def embed_vault_init(self) -> None:
         '''
         The function returns the location of the vector database as a string.
         ''' 
@@ -242,15 +218,8 @@ class ObsidianOracle(MainOracle):
 
             if response == 'y':
                 vault_vector_db, emb_chunk_dict = self.rag_model.embed_vault()
-                print('The vault has been embedded.')
-                os.makedirs(self.ragdb_path)
-                np.save(vaultdb_path, vault_vector_db)
-                with open(files_to_embed_path, 'w') as json_file:
-                    json.dump(self.file_dict, json_file, indent=4)
-                with open(emb_chunk_dict_path, 'w') as json_file:
-                    json.dump(emb_chunk_dict, json_file, indent=4)
-                
-                self.embedding_db_paths = (vaultdb_path, emb_chunk_dict_path)
+                self.save_rag_db_disk(vault_vector_db, emb_chunk_dict, vaultdb_path, files_to_embed_path, emb_chunk_dict_path)
+                return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
 
             elif response == 'n':
                 print('Proceeding without a vector database. RAG functionality will not be available.')
@@ -280,9 +249,36 @@ class ObsidianOracle(MainOracle):
                 elif response not in ['y', 'n']:
                     raise ValueError('Response must be \'y\' or \'n\'')
                         
-            return (vaultdb_path, emb_chunk_dict_path)
+            return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
 
         pass
 
+    def get_file_dict(self) -> dict:
+        file_dict = {}
+        for root, _, files in os.walk(self.vault_path, topdown=True):
+            for name in files:
+                if not name.startswith('.') and name.endswith('.md'):
+                    file_path = os.path.join(root, name)
+                    file_dict.update({name: file_path})
+        
+        return file_dict
 
+    def get_dir_dict(self) -> dict:
+        dir_dict = {}
+        for root, dirs, _ in os.walk(self.vault_path, topdown=True):
+            for name in dirs:
+                if not name.startswith('.'):
+                    file_path = os.path.join(root, name)
+                    dir_dict.update({name: file_path})
+        
+        return dir_dict
 
+    def save_rag_db_disk(self, embedded_vault: np.array, emb_chunk_dict: dict, vaultdb_path: str, files_to_embed_path: str, emb_chunk_dict_path: str) -> None:
+        
+        os.makedirs(self.ragdb_path)
+        np.save(vaultdb_path, embedded_vault)
+        with open(files_to_embed_path, 'w') as json_file:
+                json.dump(self.file_dict, json_file, indent=4)
+        with open(emb_chunk_dict_path, 'w') as json_file:
+                json.dump(emb_chunk_dict, json_file, indent=4)
+        print('The vault has been embedded.')
