@@ -44,6 +44,14 @@ The notebook `oracle.ipynb` provides some examples of usage.
 Every time you call one of the methods above, the model remembers the answer and stores it in the `.chat_history` attribute as a dictionary.
 Saving and loading histories is not supported. You will lose your chat history when you close the program.
 
+### Good Morning
+
+Currently, the `.good_morning()` method expects two files in the main folder of your Vault: `Life Todo.md` and `Work Todo.md`.
+Inside these files the only format restriction is that dates must be on this format: ```# dd/mm/yy``` and nothing else has a `h1` tag.
+You can pass an integer to the method in order to tell the model how many entries in the past it should look for.
+If you have a different file that you want to access with this method, change the path stored by the variables `life_morning_dir ` and `work_morning_dir` in the definition of the method.
+You can also change the specific formatting of your file by editing the `.extract_gmorning_content()` method.
+
 ### Interacting with chat history
 
 + The `.oblivion()` method fully erases your current chat history;
