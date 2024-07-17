@@ -32,8 +32,12 @@ class MainOracle():
             self.chat_history[self.num_turns] = {new_prompt:model_answer}
             self.num_turns += 1
             try:
-                self.display_text(model_answer)
-                print(model_answer)
+                if 'llama' in self.model_name:
+                    # self.display_text(model_answer)
+                    print(model_answer[:-50]) # This number comes from the len of the llama-specific prompt
+                else:
+                    # self.display_text(model_answer)
+                    print(model_answer[:-34]) # This number comes from the generic prompt formatting len
             except:
                 print(model_answer)
 
@@ -47,8 +51,12 @@ class MainOracle():
             self.chat_history[self.num_turns] = {new_prompt: model_answer}
             self.num_turns += 1
             try:
-                self.display_text(model_answer)
-                print(model_answer)
+                if 'llama' in self.model_name:
+                    # self.display_text(model_answer)
+                    print(model_answer[:-50]) # This number comes from the len of the llama-specific prompt
+                else:
+                    # self.display_text(model_answer)
+                    print(model_answer[:-34]) # This number comes from the generic prompt formatting len
             except:
                 print(model_answer)
             
