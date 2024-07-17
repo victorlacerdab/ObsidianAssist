@@ -227,13 +227,9 @@ class ObsidianOracle(MainOracle):
                 old_file_dict = dict(json.load(fnames_json))
             
             old_file_dict = prev_embedded_files
-            print(f'Prev_embedded_files: {prev_embedded_files}')
             recent_files = [key for key in list(self.file_dict.keys())]
-            print(f'Recent files: {recent_files}')
             deleted_files = [fname for fname in prev_embedded_files if fname not in recent_files]
-            print(f'Deleted files: {deleted_files}')
             new_files = [fname for fname in recent_files if fname not in prev_embedded_files]
-            print(f'New files: {new_files}')
 
             if deleted_files or new_files:
                 response = input('Files were either included or removed from your vault. Would you like to embed the new ones and delete the embeddings for the old ones? This may take a while. (y/n)')
