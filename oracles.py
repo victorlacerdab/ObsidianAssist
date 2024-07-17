@@ -1,4 +1,3 @@
-import transformers
 import torch
 import json
 import numpy as np
@@ -115,14 +114,14 @@ class MainOracle():
 
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
-                 rag_model, header_prompt: str, vault_path: str,
-                 ragdb_foldername: str):
+                 rag_model, header_prompt: str, chunk_token_limit: int,
+                 vault_path: str, ragdb_path: str):
         super().__init__(model_name, rag_model, device, header_prompt)
         self.vault_path = vault_path
-        self.ragdb_path = ragdb_foldername
+        self.ragdb_path = ragdb_path
         self.file_dict = self.get_file_dict()
         self.dir_dict = self.get_dir_dict()
-        self.rag_model = ObsidianRAG(rag_model, token_limit=256, file_dict=self.file_dict)
+        self.rag_model = ObsidianRAG(rag_model, token_limit=chunk_token_limit, file_dict=self.file_dict)
         self.embedding_db_paths = self.embed_vault_init() # Tuple containing (vectordb_path: np.array, emb_chunk_path: json, embedded_files_path: json)
 
     def rag_answer(self, prompt: str, top_k: int) -> None:
@@ -153,7 +152,7 @@ class ObsidianOracle(MainOracle):
     
     '''
     Right now the program expects the files to be name 'Life Todo.md' and 'Work Todo.md', and to be placed in the root folder.
-    Maybe extend it to be more custom in the future.
+    Extend it to be more custom in the future.
     '''
 
     def good_morning(self, mode: str, num_previous_days: int) -> None:
@@ -223,10 +222,18 @@ class ObsidianOracle(MainOracle):
         else:
             with open(files_to_embed_path, 'r') as fnames_json:
                 prev_embedded_files = [key for key in list(dict(json.load(fnames_json)).keys())]
-                
+            
+            with open(files_to_embed_path, 'r') as fnames_json:
+                old_file_dict = dict(json.load(fnames_json))
+            
+            old_file_dict = prev_embedded_files
+            print(f'Prev_embedded_files: {prev_embedded_files}')
             recent_files = [key for key in list(self.file_dict.keys())]
+            print(f'Recent files: {recent_files}')
             deleted_files = [fname for fname in prev_embedded_files if fname not in recent_files]
+            print(f'Deleted files: {deleted_files}')
             new_files = [fname for fname in recent_files if fname not in prev_embedded_files]
+            print(f'New files: {new_files}')
 
             if deleted_files or new_files:
                 response = input('Files were either included or removed from your vault. Would you like to embed the new ones and delete the embeddings for the old ones? This may take a while. (y/n)')
@@ -240,6 +247,7 @@ class ObsidianOracle(MainOracle):
                     
                 elif response == 'n':
                     print('Proceeding without making changes to the existing embeddings. New information will not be used for RAG, and deleted chunks might be included in answers.')
+                    self.file_dict = old_file_dict
                     return (vaultdb_path, emb_chunk_dict_path, files_to_embed_path)
 
                 elif response not in ['y', 'n']:

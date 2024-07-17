@@ -14,8 +14,8 @@ from oracles import ObsidianOracle
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'Using device: {device}')
 
-VAULT_PATH = '/Home/siv33/vbo084/VictorVault'
-RAGDB_NAME = '/Home/siv33/vbo084/ObsidianAssist/RAGVictorVaultDB'
+VAULT_PATH = '/Home/YourVault'
+RAGDB_PATH = '/Home/RAGYourVaultDB'
 
 model_list = {
     0: 'meta-llama/Meta-Llama-3-8B-Instruct',
@@ -23,16 +23,25 @@ model_list = {
     2: 'EleutherAI/gpt-neo-1.3B'
 }
 
-model_name = model_list[0]
-rag_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-header_prompt = 'You are a precise and to the point assistant. Never include preambles or questions. Use proper Markdown formatting.'
+MODEL_NAME = model_list[0]
+RAG_MODEL = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+HEADER_PROMPT = 'You are a precise and to the point assistant. Never include preambles or questions. Use proper Markdown formatting.'
+CHUNK_TOKEN_LIMIT = 256
 
-oracle = ObsidianOracle(model_name, device, rag_model, header_prompt, VAULT_PATH, RAGDB_NAME)
+oracle = ObsidianOracle(model_name=MODEL_NAME,
+                        device=device,
+                        rag_model=RAG_MODEL,
+                        header_prompt=HEADER_PROMPT,
+                        chunk_token_limit=CHUNK_TOKEN_LIMIT,
+                        vault_path=VAULT_PATH,
+                        ragdb_path=RAGDB_PATH
+                        )
 
 def main():
 
     print("Welcome to the ObsidianAssist CLI. Type 'help' for available commands.")
-    print(f'You have loaded {model_name} as your language model.')
+    print(f'You have loaded {MODEL_NAME} as your language model.')
+    print(f'Make sure to encase the arguments to your commands with square brackets: \'interact [This is a prompt.]\'.')
 
     while True:
         command = input("> ").strip()
@@ -53,6 +62,7 @@ def main():
             print("- chat_oblivion")
             print("- embedding_oblivion")
             print("- see_files")
+            print("- re-embed vault")
             print("- exit")
         
         elif cmd == 'interact':
@@ -66,7 +76,6 @@ def main():
                 cleaned_args = args.split(']')
                 prompt = cleaned_args[0][1:]
                 fnames = [fname.lstrip() for fname in cleaned_args[1][2:].split(';')]
-
                 oracle.context_answer(prompt, fnames)
             else:
                 print("Usage: context_answer [prompt] [filename1.md; filename2.md; filenamen.md]")
@@ -96,12 +105,24 @@ def main():
 
         elif cmd == 'partial_oblivion':
             if args:
+                args = int(args.replace('[', '').replace(']', ''))
                 oracle.partial_oblivion(args)
             else:
                 print("Usage: partial_oblivion [num_previous_days]")
         
         elif cmd == 'embedding_oblivion':
             oracle.embedding_oblivion()
+
+        elif cmd == 're-embed_vault':
+            answer = input('This will totally erase your Vault\'s embeddings from your computer and initiate the embedding routine. Proceed? (y/n)')
+            if answer == 'y':
+                oracle.embedding_oblivion()
+                oracle.embed_vault_init()
+            elif answer == 'n':
+                print('You may proceed as before.')
+
+            elif answer not in ['y', 'n']:
+                print('Unknown answer. The embeddings have been preserved. Try again.')
         
         elif cmd == 'see_files':
             print(list(oracle.file_dict.keys()))

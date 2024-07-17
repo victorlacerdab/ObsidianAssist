@@ -31,25 +31,17 @@ class ObsidianRAG():
                     vector_database.extend(embeddings)
 
         return np.array(vector_database), emb_chunk_dict
-    
-    def embed_new_files(self, files_to_embed: dict):
-        pass
 
     def chunk(self, content: str, token_limit: int) -> list[str]:
 
         '''
-        The 'sentence-transformers/all-MiniLM-L6-v2' was trained on 128 tokens, which we use as a hard limiter.
-        If we simply call the model.embed() method on a chunk of len(tokenized_chunk) > 128 it will implicitly
-        chunk the text in the appropriate format. Nevertheless, I do it explicitly so one can use different models
-        later which chunk on a different token limit.
-
         The function splits the content of Obsidian files in sentences on a period, but chunks them further
         in case they exceed the desired token limit.
 
-        The step for chunking sentences down can be improved, since right now it may chunk things in a meaningless way.
+        The step for chunking sentences down can be improved, since right now the chunking is quite naive.
         '''
         
-        chunked_content = re.split(r'[.;+]', content)
+        chunked_content = re.split(r'[.;]', content)
         chunked_content = [sentence.strip() for sentence in chunked_content if sentence.strip()]
         len_chunks = [self.model.tokenize(chunk)['input_ids'].shape[0] for chunk in chunked_content]
         final_chunked_content = []
@@ -70,7 +62,6 @@ class ObsidianRAG():
         return embeddings
 
     def embed_single_file(self, filename: str) -> np.array:
-
         # First time embedding file
         # Making embeding changes to file
         pass
