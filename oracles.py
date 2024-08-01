@@ -33,11 +33,10 @@ class MainOracle():
             self.num_turns += 1
             try:
                 if 'llama' in self.model_name:
-                    # self.display_text(model_answer)
-                    print(model_answer[:-50]) # This number comes from the len of the llama-specific prompt
+                    self.display_text(model_answer)
                 else:
-                    # self.display_text(model_answer)
-                    print(model_answer[:-34]) # This number comes from the generic prompt formatting len
+                    self.display_text(model_answer)
+                    
             except:
                 print(model_answer)
 
@@ -115,10 +114,12 @@ class MainOracle():
     def display_text(self, text):
         if self.model_name == 'meta-llama/Meta-Llama-3-8B' or self.model_name == 'meta-llama/Meta-Llama-3-8B-Instruct':
             text2display = text.split('<|eot_id|>')[0].strip()
-            display(Markdown(f'**Oracle Response:** {text2display}'))
+            print(text2display)
+            #display(Markdown(f'**Oracle Response:** {text2display}'))
         else:
             text2display = text.split('<end_of_turn>')[0].strip()
-            display(Markdown(f'**Oracle Response:** {text2display[len('<start_of_turn>user'):]}'))
+            print(text2display[len('<start_of_turn>user')+1:])
+            #display(Markdown(f'**Oracle Response:** {text2display[len('<start_of_turn>user'):]}'))
 
 class ObsidianOracle(MainOracle):
     def __init__(self, model_name: str, device: torch.device,
